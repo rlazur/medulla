@@ -1,42 +1,22 @@
 [[style]]
-name = 'basic_icarus'
-style_sheet = "styles/muon2024.mplstyle"
-markers = ['o', '^', 's', 'P', 'D']
-default_figsize = [6.4,4.8]
-title = ''
-mark_pot = true
-mark_preliminary = '$\bf{ICARUS}$ Work-in-Progress'
-plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
-
-[[style]]
-name = 'selected_icarus'
-style_sheet = "styles/muon2024.mplstyle"
-markers = ['o', '^', 's', 'P', 'D']
-default_figsize = [6.4,4.8]
-title = '$\bf{ICARUS}$ $1\mu Np$ CC0$\pi$'
-mark_pot = true
-mark_preliminary = '$\bf{ICARUS}$ Work-in-Progress'
-plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
-
-[[style]]
-name = 'signal_icarus'
-style_sheet = "styles/muon2024.mplstyle"
-markers = ['o', '^', 's', 'P', 'D']
-default_figsize = [6.4,4.8]
-title = '$\bf{ICARUS}$ $1\mu Np$ CC0$\pi$'
-mark_pot = true
-mark_preliminary = '$\bf{ICARUS}$ Simulation Work-in-Progress'
-plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
-
-[[style]]
 name = 'basic_sbnd'
-style_sheet = "styles/muon2024.mplstyle"
+style_sheet = "styles/numuCCpi0.mplstyle"
 markers = ['o', '^', 's', 'P', 'D']
 default_figsize = [6.4,4.8]
 title = ''
 mark_pot = true
 mark_preliminary = '$\bf{SBND}$ Work-in-Progress'
 plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
+
+[[style]]
+name = 'basic_sbnd_2D'
+style_sheet = "styles/numuCCpi0.mplstyle"
+markers = ['o', '^', 's', 'P', 'D']
+default_figsize = [6.4,4.8]
+title = ''
+mark_pot = false
+mark_preliminary = ''
+plot_kwargs = {}
 
 [[style]]
 name = 'selected_sbnd'
@@ -57,3 +37,14 @@ title = '$\bf{SBND}$ $1\mu Np$ CC0$\pi$'
 mark_pot = true
 mark_preliminary = '$\bf{SBND}$ Simulation Work-in-Progress'
 plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
+
+[[style]]
+name = 'basic_sbnd_table'
+style_sheet = "styles/muon2024.mplstyle"
+markers = ['o', '^', 's', 'P', 'D']
+default_figsize = [6.4,5.8]
+title = ''
+mark_pot = false
+mark_preliminary = ''
+plot_kwargs = {}
+

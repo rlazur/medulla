@@ -155,7 +155,7 @@ class SpineSpectra1D(SpineSpectra):
     def draw(self, ax, style, show_component_number=False,
              show_component_percentage=False, invert_stack_order=False,
              fit_type=None, logx=False, logy=False, normalize=False,
-             draw_error=None) -> None:
+             draw_error=None, legend_ncols=1, loc='best') -> None:
         """
         Plots the data for the SpineSpectra1D object.
 
@@ -180,6 +180,7 @@ class SpineSpectra1D(SpineSpectra):
             The type of fit to perform on the data. The default is
             None, which will not perform any fit. The options are:
                 'crystal_ball' - Perform a Crystal Ball fit on the data.
+                'double_sided_crystal_ball' - Perform a Double Sided Crystal Ball fit on the data.
                 'gaussian'     - Perform a Gaussian fit on the data.
         logx : bool
             A flag to indicate if the x-axis should be logarithmic.
@@ -193,6 +194,10 @@ class SpineSpectra1D(SpineSpectra):
         draw_error : str, optional
             Indicates the name of the Systematic object to use for
             drawing the error boxes. The default is None.
+        legend_ncols : int, optional
+            The number of columns in the legend. The default is 1.
+        loc : str, optional
+            The location of the legend. The default is 'best'.
 
         Returns
         -------
@@ -220,8 +225,8 @@ class SpineSpectra1D(SpineSpectra):
                 super().fit_with_function(ax, bincenters[0], np.sum(data, axis=0), self._binedges[labels[0]], fit_type, range=xr)
 
             if show_component_number and show_component_percentage:
-                hlabel = lambda x : f'{np.sum(x):.1f}, {np.sum(x)/denominator:.2%}'
-                slabel = lambda x : f'{np.sum(x):.1f}'
+                hlabel = lambda x : f'{np.sum(x)/denominator:.2%}'
+                slabel = lambda x : f'{np.sum(x):.0f}'
                 labels = [f'{label} ({hlabel(d) if li in histogram_mask else slabel(d)})' for li, (label, d) in enumerate(zip(labels, counts))]
             elif show_component_number:
                 labels = [f'{label} ({np.sum(d):.1f})' for label, d in zip(labels, counts)]
@@ -258,15 +263,15 @@ class SpineSpectra1D(SpineSpectra):
             if draw_error:
                 h.append(plt.Rectangle((0, 0), 1, 1, fc='gray', alpha=0.5, hatch='///'))
                 l.append(systs[0].label)
-                ax.legend(h[-2::-1]+h[-1:], l[-2::-1]+l[-1:])
+                ax.legend(h[-2::-1]+h[-1:], l[-2::-1]+l[-1:], ncol=legend_ncols, loc=loc)
             else:
-                ax.legend(h[::-1], l[::-1])
+                ax.legend(h[::-1], l[::-1], ncol=legend_ncols, loc=loc)
         else:
             h, l = ax.get_legend_handles_labels()
             if draw_error:
                 h.append(plt.Rectangle((0, 0), 1, 1, fc='gray', alpha=0.5, hatch='///'))
                 l.append(systs[0].label)
-            ax.legend(h, l)
+            ax.legend(h, l, ncol=legend_ncols, loc=loc)
 
         if isinstance(self._yrange, (tuple, list)):
             ax.set_ylim(*self._yrange)

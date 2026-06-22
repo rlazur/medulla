@@ -1,26 +1,63 @@
 [samples]
+
 [samples.mc]
 key = "mc"
 exposure_type = "pot"
-trees = ['selectedNu','selectedCos']
+trees = ['selected']
+precompute = {reco_muon_ke_scaled='reco_leading_muon_ke/1000.0', true_muon_ke_scaled='true_leading_muon_ke/1000.0'}
 
-[samples.mcsignal]
+[samples.mc_selected_systematics]
 key = "mc"
 exposure_type = "pot"
-trees = ['signal',]
+trees = ['selected']
+systematics = ['selected_multisimTree', 'selected_multisigmaTree']
 
-[samples.offbeam]
-key = "offbeam"
+[samples.mc_signal_systematics]
+key = "mc"
 exposure_type = "pot"
-trees = ['selectedNu',]
+trees = ['signal']
+systematics = ['signal_multisimTree','signal_multisigmaTree']  
+
+[samples.mc_nonmatched]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_nonmatched']
+
+[samples.mc_nu_cos]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_nu', 'selected_cos']
+
+[samples.mc_nu_only]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_nu']
+
+[samples.mc_cos_only]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_cos']
 
 [samples.onbeam]
 key = "onbeam"
 exposure_type = "pot"
 override_category = -100
-trees = ['selectedNu',]
+trees = ['selected']
+
+[samples.offbeam]
+key = "offbeam"
+exposure_type = "livetime"
+override_category = -10
+trees = ['selected']
+
+[samples.signal]
+key = "mc"
+exposure_type = "pot"
+trees = ['signal']
 
 [samples.intime]
 key = "intime"
 exposure_type = "livetime"
-trees = ['selectedCos',]
+trees = ['offbeam']
+
+

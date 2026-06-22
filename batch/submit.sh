@@ -10,7 +10,7 @@
 
 # Initialize variables
 PROJECT=""
-TAG="develop"
+TAG="rlazur_pi0_biselectors"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -66,7 +66,7 @@ export IFDH_CP_MAXRETRIES=0
 export IFDH_WEB_TIMEOUT=100
 
 # Setup CVMFS area
-source /cvmfs/icarus.opensciencegrid.org/products/icarus/setup_icarus.sh
+source /cvmfs/sbnd.opensciencegrid.org/products/sbnd/setup_sbnd.sh
 
 # Setup the required dependencies
 setup sbnana v10_01_02_01 -q e26:prof
@@ -75,7 +75,7 @@ setup cmake v3_27_4
 ups active
 
 # Build medulla
-git clone https://github.com/justinjmueller/medulla.git
+git clone https://github.com/rlazur/medulla.git
 cd medulla
 git checkout ${TAG}
 mkdir build && cd build

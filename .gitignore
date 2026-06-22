@@ -15,3 +15,9 @@ build/
 *.cmake
 Makefile
 selection/toml/
+spineplot/configurations
+spineplot/styles
+id_ed25519*
+setup_*
+batch/debug
+batch/project.db

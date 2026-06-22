@@ -146,6 +146,7 @@ class SpineSpectra(SpineArtist):
             The type of fit to perform on the data. The default is
             None, which will not perform any fit. The options are:
                 'crystal_ball' - Perform a Crystal Ball fit on the data.
+                'double_sided_crystal_ball' - Perform a double-sided Crystal Ball fit on the data.
                 'gaussian'     - Perform a Gaussian fit on the data.
         range : tuple, optional
             The range to fit the data over. The default is (-1,1).
@@ -199,6 +200,34 @@ class SpineSpectra(SpineArtist):
             # Plot the fit
             x = np.linspace(*range, 1000)
             ax.plot(x, self.crystal_ball(x, *popt), 'r-', label=cb_label)
+            
+        elif fit_type == 'double_sided_crystal_ball':
+            # Double-sided Crystal Ball Fit with a gaussian core
+            # First, estimate the parameters "reasonably" well to avoid
+            # the fit getting stuck in a weird place.
+            mu = np.average(bin_centers, weights=data)
+            sigma = np.sqrt(np.average((bin_centers - mu)**2, weights=data))
+            N = np.sum(data * np.diff(bin_edges))
+            alpha_l = 1.5
+            alpha_r = 1.5
+            n_l = 2.3
+            n_r = 2.3
+            initial_guess = [mu, sigma, alpha_l, alpha_r, n_l, n_r, N]           
+            popt, pcov = curve_fit(self.double_sided_crystal_ball, bin_centers, data, p0=initial_guess)
+            
+            # Label with estimated parameters and +/- 1 sigma
+            cb_label = f'DS Crystal Ball Fit\n'
+            cb_label += f'$\\mu$={popt[0]:.2f}$\\pm${np.sqrt(pcov[0,0]):.2f}\n'
+            cb_label += f'$\\sigma$={popt[1]:.2f}$\\pm${np.sqrt(pcov[1,1]):.2f}\n'
+            cb_label += f'$\\alpha_L$={popt[2]:.2f}$\\pm${np.sqrt(pcov[2,2]):.2f}\n'
+            cb_label += f'$n_L$={popt[3]:.2f}$\\pm${np.sqrt(pcov[3,3]):.2f}\n'
+            cb_label += f'$\\alpha_R$={popt[4]:.2f}$\\pm${np.sqrt(pcov[4,4]):.2f}\n'
+            cb_label += f'$n_R$={popt[5]:.2f}$\\pm${np.sqrt(pcov[5,5]):.2f}\n'
+            cb_label += f'N={popt[6]:.2f}$\\pm${np.sqrt(pcov[6,6]):.2f}'
+
+            x_fit = np.linspace(*range, 1000)
+            y_fit = self.double_sided_crystal_ball(x_fit, *popt)
+            ax.plot(x_fit, y_fit, 'r-', label=cb_label)
 
         elif fit_type == 'crystal_ball_mxb':
             # Crystal Ball fit with a mx+b background
@@ -304,6 +333,47 @@ class SpineSpectra(SpineArtist):
         result = np.nan_to_num(result, nan=0.0)
 
         # Normalize to N
+        return N * result
+    
+    @staticmethod
+    def double_sided_crystal_ball(x, mu, sigma, alpha_L, alpha_R, n_L, n_R, N):
+        """
+        Double-sided Crystal Ball function.
+
+        Parameters:
+        - x: Input data points.
+        - mu: Mean of the Gaussian core.
+        - sigma: Standard deviation of the Gaussian core.
+        - alpha_L: Transition point for the left power-law tail.
+        - n_L: Exponent of the left power-law tail.
+        - alpha_R: Transition point for the right power-law tail.
+        - n_R: Exponent of the right power-law tail.
+        - N: Normalization constant.
+        """
+        x = np.array(x)
+        t = (x - mu) / sigma
+        result = np.zeros_like(x, dtype=float)
+
+        # Define constants 
+        abs_alpha_L = np.abs(alpha_L)
+        abs_alpha_R = np.abs(alpha_R)
+
+        # Gaussian core
+        mask_gaussian = (-alpha_L <= t) & (t <= alpha_R)
+        result[mask_gaussian] = np.exp(-0.5 * t[mask_gaussian]**2)
+
+        # Left power-law tail
+        mask_left_tail = (t < -alpha_L)
+        A_L = (n_L / alpha_L)**n_L * np.exp(-0.5 * alpha_L**2)
+        B_L = n_L / alpha_L - alpha_L
+        result[mask_left_tail] = A_L * (B_L - t[mask_left_tail])**(-n_L)
+
+        # Right power-law tail
+        mask_right_tail = (t > alpha_R)
+        A_R = (n_R / alpha_R)**n_R * np.exp(-0.5 * alpha_R**2)
+        B_R = n_R / alpha_R - alpha_R
+        result[mask_right_tail] = A_R * (B_R + t[mask_right_tail])**(-n_R)
+
         return N * result
 
     @staticmethod

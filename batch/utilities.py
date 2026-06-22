@@ -364,7 +364,7 @@ def launch_jobsub(
     exp : str = 'sbnd',
     njobs : int = -1,
     confirm : bool = True,
-    tag : str = 'develop',
+    tag : str = 'rlazur_pi0_biselectors',
 ):
     """
     Launch jobs using jobsub for the given project directory. If njobs
@@ -383,7 +383,7 @@ def launch_jobsub(
         False when the caller has already obtained confirmation (e.g.
         campaign launch confirms once for all projects).
     tag : str
-        Git ref passed to submit.sh as --tag (default: develop).
+        Git ref passed to submit.sh as --tag (default: rlazur_pi0_biselectors).
 
     Returns
     -------
