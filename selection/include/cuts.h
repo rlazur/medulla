@@ -833,7 +833,7 @@ namespace cuts
     {
         for(const auto & p : obj.particles)
         {
-            if(pvars::pid(p) == 2 && pvars::primary_classification(p))
+            if(pvars::pid(p) == pvars::kMuon && pvars::primary_classification(p))
             {
                 double theta = pvars::polar_angle(p);
                 if(theta >= params[0] && theta <= params[1])
