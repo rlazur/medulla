@@ -11,9 +11,6 @@
 .DS_Store
 
 build/
-# */CMakeFiles/*
-# *.cmake
-Makefile
 selection/toml/
 spineplot/configurations
 spineplot/styles
