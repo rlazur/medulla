@@ -536,7 +536,7 @@ namespace cuts
     bool single_pi0(const caf::SRInteractionTruthDLPProxy & obj, std::vector<double> params = {0.0,})
     {
         double num_primary_pi0s = utilities::true_primary_pi0_multiplicity(obj, params);
-	return num_primary_pi0s == 1;
+	    return num_primary_pi0s == 1;
     }
     REGISTER_CUT_SCOPE(RegistrationScope::True, single_pi0, single_pi0);
 
@@ -558,7 +558,7 @@ namespace cuts
     bool at_least_one_pi0(const caf::SRInteractionTruthDLPProxy & obj, std::vector<double> params = {0.0,})
     {
         double num_primary_pi0s = utilities::true_primary_pi0_multiplicity(obj, params);
-	return num_primary_pi0s >= 1;
+	    return num_primary_pi0s >= 1;
     }
     REGISTER_CUT_SCOPE(RegistrationScope::True, at_least_one_pi0, at_least_one_pi0);
 
@@ -819,7 +819,29 @@ namespace cuts
 
         return false;
     }
-
     REGISTER_CUT_SCOPE(RegistrationScope::Reco, michel_attached_muon, michel_attached_muon);    
+
+    /**
+     * @brief Check if an interaction has a muon with a transverse
+     * @tparam T the type of interaction (true or reco).
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the minimum and maximum theta values for the muon.
+     * @return true if the interaction has a transverse muon.
+     */
+    template<class T>
+    bool muon_polar_cut(const T & obj, std::vector<double> params={1.3, 1.8})
+    {
+        for(const auto & p : obj.particles)
+        {
+            if(pvars::pid(p) == 2 && pvars::primary_classification(p))
+            {
+                double theta = pvars::polar_angle(p);
+                if(theta >= params[0] && theta <= params[1])
+                    return true;
+            }
+        }
+        return false;
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, muon_polar_cut, muon_polar_cut);
 }
 #endif

@@ -13,11 +13,13 @@
 build/
 */CMakeFiles/*
 *.cmake
+cmake/
 Makefile
 selection/toml/
 spineplot/configurations
 spineplot/styles
 id_ed25519*
-setup_*
+setup_sl7.sh
+setup.sh
 batch/debug
 batch/project.db
