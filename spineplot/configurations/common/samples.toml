@@ -38,17 +38,51 @@ key = "mc"
 exposure_type = "pot"
 trees = ['selected_cos']
 
+[samples.mc_muonbump]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_muonbump']
+
+[samples.mc_outside_muonbump]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_outside_muonbump']
+
 [samples.onbeam]
 key = "onbeam"
 exposure_type = "pot"
 override_category = -100
 trees = ['selected']
 
+[samples.onbeam_muonbump]
+key = "onbeam"
+exposure_type = "pot"
+override_category = -100
+trees = ['selected_muonbump']
+
+[samples.onbeam_outside_muonbump]
+key = "onbeam"
+exposure_type = "pot"
+override_category = -100
+trees = ['selected_outside_muonbump']
+
 [samples.offbeam]
 key = "offbeam"
 exposure_type = "livetime"
 override_category = -10
 trees = ['selected']
+
+[samples.offbeam_muonbump]
+key = "offbeam"
+exposure_type = "livetime"
+override_category = -10
+trees = ['selected_muonbump']
+
+[samples.offbeam_outside_muonbump]
+key = "offbeam"
+exposure_type = "livetime"
+override_category = -10
+trees = ['selected_outside_muonbump']
 
 [samples.signal]
 key = "mc"

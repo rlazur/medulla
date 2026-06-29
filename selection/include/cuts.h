@@ -467,6 +467,30 @@ namespace cuts
     REGISTER_CUT_SCOPE(RegistrationScope::Both, valid_pi0_mass_cut, valid_pi0_mass_cut);
 
     /**
+     * @brief Require the pi0 opening angle to lie within a specified window.
+     * @details Selects the best photon pair using the pi0_photon_pair biselector,
+     * then computes the opening angle between the two photons. The interaction fails
+     * the cut if no valid photon pair exists or if the opening angle falls outside
+     * [params[0], params[1]).
+     * @tparam T the type of interaction (true or reco).
+     * @param obj the interaction to select on.
+     * @param params params[0] lower opening angle bound (degrees), params[1] upper opening angle bound (degrees).
+     *               Defaults to [0.9, 1.0) degrees.
+     * @return true if a valid photon pair exists and its opening angle is in [params[0], params[1]).
+     */
+    template<class T>
+    bool pi0_opening_angle_cut(const T & obj, std::vector<double> params={0.9, 1.0})
+    {
+        auto [i0, i1] = biselectors::pi0_photon_pair(obj);
+        if(i0 == kNoMatch || i1 == kNoMatch) return false;
+        const auto & p0 = obj.particles[i0];
+        const auto & p1 = obj.particles[i1];
+        double opening_angle = bvars::opening_angle(p0, p1);
+        return opening_angle >= params[0] && opening_angle <= params[1];
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, pi0_opening_angle_cut, pi0_opening_angle_cut);
+
+    /**
      * @brief Binding for a single particle electron multiplicity cut.
      * @details This function binds the single particle multiplicity cut for
      * electrons, which corresponds to the index 1 in the

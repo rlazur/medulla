@@ -11,11 +11,11 @@
 .DS_Store
 
 build/
-selection/toml/
+selection/toml/*.toml
 spineplot/configurations
+spineplot/configurations/common/samples.toml
 spineplot/styles
 id_ed25519*
-setup_sl7.sh
-setup.sh
+setup*
 batch/debug
 batch/project.db
