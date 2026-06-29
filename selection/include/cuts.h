@@ -853,11 +853,11 @@ namespace cuts
      * @return true if the interaction has a transverse muon.
      */
     template<class T>
-    bool muon_polar_cut(const T & obj, std::vector<double> params={1.3, 1.8})
+    bool muon_polar_cut(const T & obj, std::vector<double> params={1.3, 2.0})
     {
         for(const auto & p : obj.particles)
         {
-            if(pvars::pid(p) == pvars::kMuon && pvars::primary_classification(p))
+            if(pvars::pid(p) == pvars::kMuon)
             {
                 double theta = pvars::polar_angle(p);
                 if(theta >= params[0] && theta <= params[1])
