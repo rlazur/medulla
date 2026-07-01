@@ -121,29 +121,29 @@ xlabel = "True Vertex Z Position [cm]"
 ############################################
 ## Interaction Variables
 
-# [variables.reco_Q2]
-# key = "reco_Q2"
-# range = [-12500, 2000]
-# nbins = 30
-# xlabel = "Reco. $Q^{2}$ [(MeV/c)$^{2}$]"
+[variables.reco_Q2]
+key = "reco_Q2"
+range = [-12500, 2000]
+nbins = 30
+xlabel = "Reco. $Q^{2}$ [(MeV/c)$^{2}$]"
 
-# [variables.true_Q2]
-# key = "true_Q2"
-# range = [-12500, 2000]
-# nbins = 25
-# xlabel = "True $Q^{2}$ [(MeV/c)$^{2}$]"
+[variables.true_Q2]
+key = "true_Q2"
+range = [-12500, 2000]
+nbins = 25
+xlabel = "True $Q^{2}$ [(MeV/c)$^{2}$]"
 
-# [variables.reco_W]
-# key = "reco_W"
-# range = [0, 175]
-# nbins = 30
-# xlabel = "Reco. W [MeV/c$^{2}$]"
+[variables.reco_W]
+key = "reco_W"
+range = [0, 175]
+nbins = 30
+xlabel = "Reco. W [MeV/c$^{2}$]"
 
-# [variables.true_W]
-# key = "true_W"
-# range = [0, 175]
-# nbins = 25
-# xlabel = "True W [MeV/c$^{2}$]"
+[variables.true_W]
+key = "true_W"
+range = [0, 175]
+nbins = 25
+xlabel = "True W [MeV/c$^{2}$]"
 
 # [variables.reco_W_calosub]
 # key = "reco_W_calosub"

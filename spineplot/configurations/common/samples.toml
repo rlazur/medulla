@@ -48,6 +48,11 @@ key = "mc"
 exposure_type = "pot"
 trees = ['selected_outside_muonbump']
 
+[samples.mc_small_opening_angle]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_small_opening_angle']
+
 [samples.onbeam]
 key = "onbeam"
 exposure_type = "pot"
@@ -66,6 +71,12 @@ exposure_type = "pot"
 override_category = -100
 trees = ['selected_outside_muonbump']
 
+[samples.onbeam_small_opening_angle]
+key = "onbeam"
+exposure_type = "pot"
+override_category = -100
+trees = ['selected_small_opening_angle']
+
 [samples.offbeam]
 key = "offbeam"
 exposure_type = "livetime"
@@ -83,6 +94,12 @@ key = "offbeam"
 exposure_type = "livetime"
 override_category = -10
 trees = ['selected_outside_muonbump']
+
+[samples.offbeam_small_opening_angle]
+key = "offbeam"
+exposure_type = "livetime"
+override_category = -10
+trees = ['selected_small_opening_angle']
 
 [samples.signal]
 key = "mc"
