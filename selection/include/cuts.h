@@ -528,6 +528,35 @@ namespace cuts
     REGISTER_CUT_SCOPE(RegistrationScope::Both, single_muon, single_muon);
 
     /**
+     * @brief Binding for a single particle muon multiplicity cut.
+     * @details This function binds the single particle multiplicity cut for
+     * muons, which corresponds to the index 2 in the
+     * @ref utilities::count_primaries function.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * kinetic energy threshold for a muon to count towards the multiplicity.
+     * Defaults to 143.425 MeV, which corresponds to a muon of length 50 cm
+     * (assuming the muon stops).
+     * @return true if the interaction has a single primary muon.
+     */
+    template<class T>
+    bool single_muon_polar_cut(const T & obj, std::vector<double> params={143.425, 1.8, 2.0})
+    {
+        if(particle_multiplicity(obj, 1, 2, {params[0]}) != 1)
+            return false;
+        for(const auto & p : obj.particles)
+        {
+            if(pvars::pid(p) == 2 && pvars::primary_classification(p) && pvars::ke(p) >= params[0])
+            {
+                double polar_angle = pvars::polar_angle(p);
+                return polar_angle >= params[1] && polar_angle <= params[2];
+            }
+        }
+        return false;
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, single_muon_polar_cut, single_muon_polar_cut);
+
+    /**
      * @brief Binding for a single particle pion multiplicity cut.
      * @details This function binds the single particle multiplicity cut for
      * charged pions, which corresponds to the index 3 in the
@@ -853,11 +882,11 @@ namespace cuts
      * @return true if the interaction has a transverse muon.
      */
     template<class T>
-    bool muon_polar_cut(const T & obj, std::vector<double> params={1.3, 2.0})
+    bool muon_polar_cut(const T & obj, std::vector<double> params={})
     {
         for(const auto & p : obj.particles)
         {
-            if(pvars::pid(p) == pvars::kMuon)
+            if(pvars::pid(p) == 2)
             {
                 double theta = pvars::polar_angle(p);
                 if(theta >= params[0] && theta <= params[1])
