@@ -221,11 +221,11 @@ namespace cuts
      * @return true if the vertex is at least 5 cm from the cathode.
      */
     template<class T>
-    bool DENT_cut(const T & obj)
+    bool DENT_fiducial_cut(const T & obj)
     {
         return abs(obj.vertex[0]) >= 5;
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, DENT_cut, DENT_cut);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, DENT_fiducial_cut, DENT_fiducial_cut);
 
     template<class T>
     bool fiducial_cut_tmp(const T & obj)
@@ -461,34 +461,27 @@ namespace cuts
         double vx = obj.vertex[0], vy = obj.vertex[1], vz = obj.vertex[2];
         double ke0 = pvars::calo_ke(p0), ke1 = pvars::calo_ke(p1);
         double ct   = bvars::pi0_opening_costheta_impl(p0, p1, vx, vy, vz);
+
         double mass = std::sqrt(2.0 * ke0 * ke1 * (1.0 - ct));
         return mass >= params[0] && mass < params[1];
     }
     REGISTER_CUT_SCOPE(RegistrationScope::Both, valid_pi0_mass_cut, valid_pi0_mass_cut);
 
-    /**
-     * @brief Require the pi0 opening angle to lie within a specified window.
-     * @details Selects the best photon pair using the pi0_photon_pair biselector,
-     * then computes the opening angle between the two photons. The interaction fails
-     * the cut if no valid photon pair exists or if the opening angle falls outside
-     * [params[0], params[1]).
-     * @tparam T the type of interaction (true or reco).
-     * @param obj the interaction to select on.
-     * @param params params[0] lower opening angle bound (degrees), params[1] upper opening angle bound (degrees).
-     *               Defaults to [0.9, 1.0) degrees.
-     * @return true if a valid photon pair exists and its opening angle is in [params[0], params[1]).
-     */
     template<class T>
-    bool pi0_opening_angle_cut(const T & obj, std::vector<double> params={0.9, 1.0})
+    bool valid_pi0_mass_openingangle_cut(const T & obj, std::vector<double> params={60.0, 300.0, 0.9, 1.0})
     {
         auto [i0, i1] = biselectors::pi0_photon_pair(obj);
         if(i0 == kNoMatch || i1 == kNoMatch) return false;
         const auto & p0 = obj.particles[i0];
         const auto & p1 = obj.particles[i1];
+        double vx = obj.vertex[0], vy = obj.vertex[1], vz = obj.vertex[2];
+        double ke0 = pvars::calo_ke(p0), ke1 = pvars::calo_ke(p1);
+        double ct   = bvars::pi0_opening_costheta_impl(p0, p1, vx, vy, vz);
         double opening_angle = bvars::opening_angle(p0, p1);
-        return opening_angle >= params[0] && opening_angle <= params[1];
+        double mass = std::sqrt(2.0 * ke0 * ke1 * (1.0 - ct));
+        return mass >= params[0] && mass < params[1] && opening_angle >= params[2] && opening_angle <= params[3];
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, pi0_opening_angle_cut, pi0_opening_angle_cut);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, valid_pi0_mass_openingangle_cut, valid_pi0_mass_openingangle_cut);
 
     /**
      * @brief Binding for a single particle electron multiplicity cut.
@@ -875,26 +868,29 @@ namespace cuts
     REGISTER_CUT_SCOPE(RegistrationScope::Reco, michel_attached_muon, michel_attached_muon);    
 
     /**
-     * @brief Check if an interaction has a muon with a transverse
+     * Checks if a muon is through-going (passes through the cathode plane at x=0).
      * @tparam T the type of interaction (true or reco).
      * @param obj the interaction to select on.
-     * @param params the parameters for the cut. In this case, this sets the minimum and maximum theta values for the muon.
-     * @return true if the interaction has a transverse muon.
+     * @param params the parameters for the cut. In this case, this sets the
+     * muon KE threshold.
+     * @return true if the interaction has a through-going muon.
      */
     template<class T>
-    bool muon_polar_cut(const T & obj, std::vector<double> params={})
+    bool throughgoing_muon(const T & obj, std::vector<double> params={143.425,})
     {
         for(const auto & p : obj.particles)
         {
-            if(pvars::pid(p) == 2)
+            if(pvars::pid(p) == 2 && pvars::primary_classification(p) && pvars::ke(p) >= params[0])
             {
-                double theta = pvars::polar_angle(p);
-                if(theta >= params[0] && theta <= params[1])
-                    return true;
+                float start_x = pvars::start_x(p);
+                float end_x = pvars::end_x(p);
+
+                // Check if the muon starts and ends on opposite sides of the cathode plane (x=0)
+                if((start_x < 0 && end_x >= 0) || (start_x >= 0 && end_x <= 0)){return true;}
             }
         }
-        return false;
+        return false; // No through-going muon found
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, muon_polar_cut, muon_polar_cut);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, throughgoing_muon, throughgoing_muon);
 }
 #endif
