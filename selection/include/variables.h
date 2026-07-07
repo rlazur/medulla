@@ -112,10 +112,38 @@ namespace vars
      * @details The fiducial volume status is determined upstream in the SPINE
      * reconstruction and is a requirement that the interaction vertex is within
      * the fiducial volume of the TPC.
+        * @tparam T the type of interaction (true or reco).
+        * @param obj the interaction to apply the variable on.
+        * @return the fiducial volume status of the interaction.
      */
     template<class T>
     double fiducial(const T & obj) { return cuts::fiducial_cut(obj); }
     REGISTER_VAR_SCOPE(RegistrationScope::Both, fiducial, fiducial);
+
+    /**
+     * @brief Variable for the near-cathode status of the interaction.
+     * @details The near-cathode status is determined upstream in the SPINE
+     * reconstruction and is a requirement that the interaction vertex is within
+     * 5 cm of the cathode.
+        * @tparam T the type of interaction (true or reco).
+        * @param obj the interaction to apply the variable on.
+        * @return the near-cathode status of the interaction.
+     */
+    template<class T>
+    double near_cathode(const T & obj) { return cuts::near_cathode_cut(obj); }
+    REGISTER_VAR_SCOPE(RegistrationScope::Both, near_cathode, near_cathode);
+
+    /**
+     * @brief Variable for the throughgoing muon status of the interaction.
+     * @details Throughgoing muons are defined by their start/end points
+     * being on opposite sides of the cathode plane (x=0).
+        * @tparam T the type of interaction (true or reco).
+        * @param obj the interaction to apply the variable on.
+        * @return the throughgoing muon status of the interaction.
+     */
+    template<class T>
+    double throughgoing_muon(const T & obj) { return cuts::throughgoing_muon_cut(obj); }
+    REGISTER_VAR_SCOPE(RegistrationScope::Both, throughgoing_muon, throughgoing_muon);
 
     /**
      * @brief Variable for total visible energy of interaction.

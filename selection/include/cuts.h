@@ -221,11 +221,11 @@ namespace cuts
      * @return true if the vertex is at least 5 cm from the cathode.
      */
     template<class T>
-    bool DENT_fiducial_cut(const T & obj)
+    bool near_cathode_cut(const T & obj)
     {
-        return abs(obj.vertex[0]) >= 5;
+        return abs(obj.vertex[0]) <= 5;
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, DENT_fiducial_cut, DENT_fiducial_cut);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, near_cathode_cut, near_cathode_cut);
 
     template<class T>
     bool fiducial_cut_tmp(const T & obj)
@@ -876,7 +876,7 @@ namespace cuts
      * @return true if the interaction has a through-going muon.
      */
     template<class T>
-    bool throughgoing_muon(const T & obj, std::vector<double> params={143.425,})
+    bool throughgoing_muon_cut(const T & obj, std::vector<double> params={143.425,})
     {
         for(const auto & p : obj.particles)
         {
@@ -891,6 +891,6 @@ namespace cuts
         }
         return false; // No through-going muon found
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, throughgoing_muon, throughgoing_muon);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, throughgoing_muon_cut, throughgoing_muon_cut);
 }
 #endif
