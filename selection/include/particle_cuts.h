@@ -105,23 +105,23 @@ namespace pcuts
     REGISTER_CUT_SCOPE(RegistrationScope::BothParticle, final_state_signal, final_state_signal);
 
     /**
-     * @brief Check if the particle is throughgoing.
-     * @details This function checks if the particle is throughgoing. A
-     * throughgoing particle is defined as a particle which has both ends
+     * @brief Check if the particle is cathode_crossing.
+     * @details This function checks if the particle is cathode_crossing. A
+     * cathode_crossing particle is defined as a particle which has both ends
      * of the track near the boundary of the detector. This is only applicable
      * to tracks as it is somewhat nonsensical for showers.
      * @tparam T the type of particle (true or reco).
      * @param p the particle to check.
-     * @return true if the particle is throughgoing.
+     * @return true if the particle is cathode_crossing.
      */
     template<class T>
-    bool throughgoing(const T & p)
+    bool cathode_crossing(const T & p)
     {
         utilities::three_vector start_point = {p.start_point[0], p.start_point[1], p.start_point[2]};
         utilities::three_vector end_point = {p.end_point[0], p.end_point[1], p.end_point[2]};
         return pvars::pid(p) > 1 && utilities::near_boundary(start_point) && utilities::near_boundary(end_point);
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::BothParticle, throughgoing, throughgoing);
+    REGISTER_CUT_SCOPE(RegistrationScope::BothParticle, cathode_crossing, cathode_crossing);
 
     /**
      * @brief Check if the particle is of the given type.

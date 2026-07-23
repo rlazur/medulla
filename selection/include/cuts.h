@@ -876,7 +876,7 @@ namespace cuts
      * @return true if the interaction has a through-going muon.
      */
     template<class T>
-    bool throughgoing_muon_cut(const T & obj, std::vector<double> params={143.425,})
+    bool cathode_crossing_muon_cut(const T & obj, std::vector<double> params={143.425,})
     {
         for(const auto & p : obj.particles)
         {
@@ -891,6 +891,6 @@ namespace cuts
         }
         return false; // No through-going muon found
     }
-    REGISTER_CUT_SCOPE(RegistrationScope::Both, throughgoing_muon_cut, throughgoing_muon_cut);
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, cathode_crossing_muon_cut, cathode_crossing_muon_cut);
 }
 #endif

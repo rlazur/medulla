@@ -134,16 +134,16 @@ namespace vars
     REGISTER_VAR_SCOPE(RegistrationScope::Both, near_cathode, near_cathode);
 
     /**
-     * @brief Variable for the throughgoing muon status of the interaction.
-     * @details Throughgoing muons are defined by their start/end points
+     * @brief Variable for the cathode_crossing muon status of the interaction.
+     * @details cathode_crossing muons are defined by their start/end points
      * being on opposite sides of the cathode plane (x=0).
         * @tparam T the type of interaction (true or reco).
         * @param obj the interaction to apply the variable on.
-        * @return the throughgoing muon status of the interaction.
+        * @return the cathode_crossing muon status of the interaction.
      */
     template<class T>
-    double throughgoing_muon(const T & obj) { return cuts::throughgoing_muon_cut(obj); }
-    REGISTER_VAR_SCOPE(RegistrationScope::Both, throughgoing_muon, throughgoing_muon);
+    double cathode_crossing_muon(const T & obj) { return cuts::cathode_crossing_muon_cut(obj); }
+    REGISTER_VAR_SCOPE(RegistrationScope::Both, cathode_crossing_muon, cathode_crossing_muon);
 
     /**
      * @brief Variable for total visible energy of interaction.
