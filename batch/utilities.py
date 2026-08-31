@@ -449,7 +449,7 @@ def launch_jobsub(
         '--expected-lifetime=1h',
         '--resource-provides=usage_model=DEDICATED,OPPORTUNISTIC,OFFSITE',
         "--append_condor_requirements='(TARGET.HAS_Singularity==true)'",
-        '--singularity-image=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-el9:latest',
+        '--singularity-image=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-el9:latest', #latest EL9 image
         f'file://{Path(__file__).resolve().parent / "submit.sh"}',
         '--',
         f'--project={project_dir.resolve()}',
