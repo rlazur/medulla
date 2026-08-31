@@ -2,11 +2,13 @@
 import os
 import re
 import sqlite3
+import time
 import toml
 from catalog import resolve_samples
 from glob import glob
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 # ANSI helpers (no third-party dependency)
 _INFO     = '\033[1m\033[94m[INFO]\033[0m'      # bold blue
@@ -365,6 +367,10 @@ def launch_jobsub(
     njobs : int = -1,
     confirm : bool = True,
     tag : str = 'rlazur_pi0_biselectors',
+    memory : int = 1800,
+    disk : Optional[int] = None,
+    lifetime : str = '1h',
+    verbose : bool = False,
 ):
     """
     Launch jobs using jobsub for the given project directory. If njobs
@@ -384,6 +390,18 @@ def launch_jobsub(
         campaign launch confirms once for all projects).
     tag : str
         Git ref passed to submit.sh as --tag (default: rlazur_pi0_biselectors).
+    memory : int
+        Amount of memory to request for each job in MB. If None, use default.
+    disk : int
+        Amount of disk to request for each job in GB. If None, use default.
+    lifetime : str
+        Expected lifetime of each job (e.g., '1h', '30m'). If None, use default.
+    verbose : bool
+        If True, print the full jobsub_submit command and its complete
+        stdout/stderr, even on a successful submission. jobsub_submit can
+        exit 0 while still failing to submit some individual jobs, and
+        those failures are otherwise only visible in the full output,
+        which is normally discarded down to a one-line summary.
 
     Returns
     -------
@@ -431,7 +449,7 @@ def launch_jobsub(
         '--expected-lifetime=1h',
         '--resource-provides=usage_model=DEDICATED,OPPORTUNISTIC,OFFSITE',
         "--append_condor_requirements='(TARGET.HAS_Singularity==true)'",
-        '--singularity-image=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-sl7:latest',
+        '--singularity-image=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-el9:latest',
         f'file://{Path(__file__).resolve().parent / "submit.sh"}',
         '--',
         f'--project={project_dir.resolve()}',
@@ -451,20 +469,51 @@ def launch_jobsub(
     # they need to run `htgettoken` to refresh it. The exception is
     # printed to stdout by jobsub, so we just need to catch it and
     # print a more user-friendly message.
-    try:
-        out = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        if 'ExpiredSignatureError' in (output := e.stderr.strip()):
-            print(f"{_ERROR} -- Job submission failed due to expired token. Please run `htgettoken` to refresh your token and try again.")
-        else:
-            print(f"{_ERROR} -- Job submission failed with error: {output}")
-        return False
+    #
+    # A separate, transient failure mode has been observed when multiple
+    # jobsub_submit calls run in quick succession: HTCondor's vault
+    # credential manager (condor_vault_storer) can race against a
+    # still-in-progress credential write from a previous submission and
+    # refuse to proceed ("Credentials exist that do not match the
+    # request"). The requested scopes/handle are unchanged in this case
+    # (no real credential problem), so it is safe to retry once after a
+    # short delay rather than failing outright.
+    max_attempts = 2
+    retry_delay = 5  # seconds
+    for attempt in range(1, max_attempts + 1):
+        try:
+            out = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            break
+        except subprocess.CalledProcessError as e:
+            if 'condor_vault_storer' in e.stderr and attempt < max_attempts:
+                print(f"{_ERROR} -- Transient vault credential conflict detected, "
+                      f"retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                continue
+            if 'ExpiredSignatureError' in (output := e.stderr.strip()):
+                print(f"{_ERROR} -- Job submission failed due to expired token. Please run `htgettoken` to refresh your token and try again.")
+            else:
+                print(f"{_ERROR} -- Job submission failed with error: {output}")
+            if verbose:
+                print(f"{_ERROR} -- Full stdout:\n{e.stdout}")
+                print(f"{_ERROR} -- Full stderr:\n{e.stderr}")
+            return False
 
     if confirm:
         # Single-project workflow: show full output so the user can verify.
         stdout = out.stdout.strip()
         print('\n'.join(stdout.split('\n')[-4:]))
         print(f"{_INFO} -- Launched {njobs} jobs.")
+    elif verbose:
+        # Campaign workflow with verbose requested: jobsub_submit can exit 0
+        # while still failing to submit some individual jobs, so show the
+        # full output rather than just the one-line summary.
+        print(f"{_INFO} -- Full jobsub_submit stdout:\n{out.stdout.strip()}")
+        if out.stderr.strip():
+            print(f"{_INFO} -- Full jobsub_submit stderr:\n{out.stderr.strip()}")
+        match = re.search(r'job id\s+(\S+)', out.stdout)
+        job_id = match.group(1) if match else 'unknown'
+        print(f"{_CAMPAIGN} Submitted {njobs} job(s). Job ID: {job_id}")
     else:
         # Campaign workflow: one clean line per project.
         match = re.search(r'job id\s+(\S+)', out.stdout)
