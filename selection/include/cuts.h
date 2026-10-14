@@ -814,6 +814,47 @@ namespace cuts
     REGISTER_CUT_SCOPE(RegistrationScope::Both, single_pion, single_pion);
 
     /**
+     * @brief Binding for a single particle neutral pion multiplicity cut.
+     * @details This function binds the single particle multiplicity cut for
+     * neutral pions, which corresponds to the index 5 in the
+     * @ref utilities::count_primaries function.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * kinetic energy threshold for a neutral pion to count towards the multiplicity.
+     * Defaults to 0 MeV.
+     * @return true if the interaction has a single primary neutral pion.
+     */
+    template<class T>
+    bool single_pi0(const caf::SRInteractionTruthDLPProxy & obj, std::vector<double> params = {0.0,})
+    {
+        double num_primary_pi0s = utilities::true_primary_pi0_multiplicity(obj, params);
+	    return num_primary_pi0s == 1;
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::True, single_pi0, single_pi0);
+
+    /**
+     * @brief Binding for at least one primary neutral pion multiplicity cut.
+     * @details This function binds a cut that requires at least one primary
+     * neutral pion, which corresponds to the index 5 in the
+     * @ref utilities::count_primaries function. This is intended to be used as
+     * a more inclusive alternative to the single_pi0 cut, which may be useful in
+     * cases where we want to allow for additional neutral pions in the final
+     * state (e.g. from FSI) but still want to require the presence of a pi0.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * kinetic energy threshold for a neutral pion to count towards the multiplicity.
+     * Defaults to 0 MeV.
+     * @return true if the interaction has at least one primary neutral pion.
+     */
+    template<class T>
+    bool at_least_one_pi0(const caf::SRInteractionTruthDLPProxy & obj, std::vector<double> params = {0.0,})
+    {
+        double num_primary_pi0s = utilities::true_primary_pi0_multiplicity(obj, params);
+	    return num_primary_pi0s >= 1;
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::True, at_least_one_pi0, at_least_one_pi0);
+
+    /**
      * @brief Binding for a single particle proton multiplicity cut.
      * @details This function binds the single particle multiplicity cut for
      * protons, which corresponds to the index 4 in the
