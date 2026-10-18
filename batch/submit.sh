@@ -1,12 +1,16 @@
 #!/bin/bash
 
 #######################################################################
-# Usage: submit.sh [--project=PROJECT] [--tag=TAG] [--sample=SAMPLE]
-#                  [--force] [--stage-timeout=SECONDS] [--no-validate]
-#                  [--jobs-per-process=M] [--total-jobs=N] [--shipped-db]
+# Usage: submit.sh [--project=PROJECT] [--repo=URL] [--tag=TAG]
+#                  [--sample=SAMPLE] [--force] [--stage-timeout=SECONDS]
+#                  [--no-validate] [--jobs-per-process=M] [--total-jobs=N]
+#                  [--shipped-db]
 #
 # Arguments:
 #   --project=PROJECT   : Specify the project directory
+#   --repo=URL          : Git repository to clone medulla from (default:
+#                          https://github.com/justinjmueller/medulla.git).
+#                          Must be readable anonymously over https.
 #   --tag=TAG           : Git ref to checkout on grid nodes (default: develop)
 #   --sample=SAMPLE     : Restrict job selection to the given sample
 #   --force              : Overwrite pre-existing output files at the
@@ -133,6 +137,7 @@ usage() {
   echo ""
   echo "Arguments:"
   echo "  --project=PROJECT   : Specify the project directory"
+  echo "  --repo=URL          : Git repository to clone medulla from (default: justinjmueller/medulla)"
   echo "  --tag=TAG           : Git ref to checkout on grid nodes (default: develop)"
   echo "  --sample=SAMPLE     : Restrict job selection to the given sample"
   echo "  --force              : Overwrite pre-existing output files at the destination"
@@ -145,6 +150,7 @@ usage() {
 
 # Initialize variables
 PROJECT=""
+REPO="https://github.com/justinjmueller/medulla.git"
 TAG="develop"
 SAMPLE=""
 FORCE=""
@@ -163,6 +169,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --project)
       PROJECT="$2"
+      shift 2
+      ;;
+    --repo=*)
+      REPO="${1#*=}"
+      shift
+      ;;
+    --repo)
+      REPO="$2"
       shift 2
       ;;
     --tag=*)
@@ -377,7 +391,7 @@ PROCESS_START=$(now_s)
 
 # Setup CVMFS area
 t0=$(now_s)
-source /cvmfs/icarus.opensciencegrid.org/products/icarus/setup_icarus.sh
+source /cvmfs/sbnd.opensciencegrid.org/products/sbnd/setup_sbnd.sh
 
 # Setup the required dependencies
 setup sbnana v10_01_04 -q e26:prof
@@ -389,9 +403,17 @@ SETUP_TIME=$(( $(now_s) - t0 ))
 
 # Build medulla
 t0=$(now_s)
-git clone https://github.com/justinjmueller/medulla.git
-cd medulla
-git checkout ${TAG}
+git clone "${REPO}" medulla
+if ! cd medulla; then
+    log_error "Could not clone medulla from ${REPO}."
+    exit 1
+fi
+# A ref missing from REPO (e.g. a release tag a fork never copied) must stop
+# the job: carrying on would quietly build the default branch instead.
+if ! git checkout "${TAG}"; then
+    log_error "Git ref '${TAG}' not found in ${REPO}."
+    exit 1
+fi
 CLONE_TIME=$(( $(now_s) - t0 ))
 
 # Resolve --tag to the commit this job actually built. A tag name is not
@@ -402,7 +424,7 @@ CLONE_TIME=$(( $(now_s) - t0 ))
 # was to inspect the physics content of their output.
 MEDULLA_COMMIT=$(git rev-parse HEAD 2>/dev/null)
 [[ -z "$MEDULLA_COMMIT" ]] && MEDULLA_COMMIT=unknown
-log_info "Built ${TAG} at commit ${MEDULLA_COMMIT}."
+log_info "Built ${TAG} from ${REPO} at commit ${MEDULLA_COMMIT}."
 
 t0=$(now_s)
 mkdir build && cd build
@@ -613,6 +635,7 @@ run_jobid() (
     # Start the validation record. The header format matches the one the
     # failure-analysis tooling already parses (failure_ana/sources.py).
     record "JOB (${JOBID},${PROCESS}) VALIDATION"
+    record "REPO=${REPO}"
     record "TAG=${TAG}"
     record "COMMIT=${MEDULLA_COMMIT}"
     record "HOSTNAME=$(hostname -f 2>/dev/null || hostname)"

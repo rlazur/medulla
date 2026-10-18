@@ -1285,6 +1285,11 @@ JOB_MACRO_PATHS = (
 # --shipped-db looks for exactly this name in $CONDOR_DIR_INPUT.
 SUBMISSION_DB_NAME = 'submission.db.gz'
 
+# Repository grid nodes clone medulla from, unless a campaign was created
+# with another (e.g. a personal fork holding a branch with extra cuts).
+# Must be readable anonymously over https: grid nodes have no credentials.
+DEFAULT_REPO = 'https://github.com/justinjmueller/medulla.git'
+
 def write_submission_db(
     project_db,
     dst,
@@ -1386,6 +1391,7 @@ def launch_jobsub(
     verbose : bool = False,
     force : bool = False,
     jobs_per_process : int = 1,
+    repo : str = DEFAULT_REPO,
 ):
     """
     Launch jobs using jobsub for the given project directory. If njobs
@@ -1443,6 +1449,10 @@ def launch_jobsub(
         The build and environment setup are paid once per process, so this
         trades submission overhead against the lifetime each process needs:
         raise lifetime to cover jobs_per_process job IDs.
+    repo : str
+        Git repository URL passed to submit.sh as --repo: where grid nodes
+        clone medulla from before checking out `tag` (default:
+        DEFAULT_REPO).
 
     Returns
     -------
@@ -1543,14 +1553,14 @@ def launch_jobsub(
     try:
         return _launch_targets(
             project_dir, exp, targets, ship_dir, confirm, tag, memory, disk,
-            lifetime, verbose, force, jobs_per_process,
+            lifetime, verbose, force, jobs_per_process, repo,
         )
     finally:
         shutil.rmtree(ship_dir, ignore_errors=True)
 
 def _launch_targets(
     project_dir, exp, targets, ship_dir, confirm, tag, memory, disk,
-    lifetime, verbose, force, jobs_per_process,
+    lifetime, verbose, force, jobs_per_process, repo,
 ):
     """
     Build, confirm and run the jobsub_submit call for each (sample, count)
@@ -1607,6 +1617,7 @@ def _launch_targets(
             f'file://{Path(__file__).resolve().parent / "submit.sh"}',
             '--',
             f'--project={project_dir.resolve()}',
+            f'--repo={repo}',
             f'--tag={tag}',
             f'--jobs-per-process={jobs_per_process}',
             # Lets the last process stop at the requested count.

@@ -23,7 +23,7 @@ from utilities import (create_new_project, check_project_status, launch_jobsub,
                        safe_copy, safe_write_text, survey_project_output,
                        iter_output_files, find_output_file, output_globs, jobid_of,
                        MIN_OUTPUT_BYTES, reconcile_project, format_reconcile_report,
-                       local_tmp_dir)
+                       local_tmp_dir, check_git_branch, DEFAULT_REPO)
 
 # Repo root is two levels above this script (batch/ -> repo root).
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -195,7 +195,8 @@ SCHEMA_CAMPAIGN_META = """
 CREATE TABLE IF NOT EXISTS campaign_meta (
     name TEXT NOT NULL,
     tag  TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    repo TEXT
 );
 """
 
@@ -377,7 +378,8 @@ def expand_campaign(analyses, catalog_path,
 
 def create_campaign(campaign_dir, project_units, catalog_path,
                     name, tag,
-                    batch_size_override=None, campaign_cfg=None):
+                    batch_size_override=None, campaign_cfg=None,
+                    repo=DEFAULT_REPO):
     """
     Create a campaign directory with campaign.db and one project sub-directory
     per ProjectUnit.
@@ -409,6 +411,9 @@ def create_campaign(campaign_dir, project_units, catalog_path,
         jobsub_submit as --expected-lifetime=4h at launch time; omitted
         entirely (None, the default) lets launch_jobsub fall back to its
         own default.
+    repo : str
+        Git repository grid nodes clone medulla from, stored in campaign.db
+        beside the tag.
 
     Raises
     ------
@@ -429,7 +434,7 @@ def create_campaign(campaign_dir, project_units, catalog_path,
         conn.row_factory = sqlite3.Row
         curs = conn.cursor()
         curs.executescript(SCHEMA_CAMPAIGN_META + SCHEMA_PROJECTS)
-        curs.execute("INSERT INTO campaign_meta (name, tag) VALUES (?, ?)", (name, tag))
+        curs.execute("INSERT INTO campaign_meta (name, tag, repo) VALUES (?, ?, ?)", (name, tag, repo))
         conn.commit()
 
         # Build per-project batch_size override lookup from campaign_cfg.
@@ -1137,6 +1142,15 @@ def cmd_create(args):
         print("[CAMPAIGN] Error: --output is required when not using --dry-run.")
         sys.exit(1)
 
+    # Grid nodes clone --repo and check out --tag, so a ref missing from that
+    # repository (e.g. a branch not yet pushed, or a release tag absent from
+    # a fork) would fail every job. Refuse it before anything is created.
+    print(f"[CAMPAIGN] Grid jobs will build '{args.tag}' from {args.repo}")
+    if not check_git_branch(args.tag, args.repo):
+        print(f"{_TAG_CAMPAIGN} Error: no branch or tag '{args.tag}' in {args.repo}. "
+              "Push it there first, or pass the right --repo/--tag.")
+        sys.exit(1)
+
     # Confirm with the user before creating anything.
     resp = input("\n[CAMPAIGN] Proceed with campaign creation? [Y/N] ")
     if resp.strip().lower() != 'y':
@@ -1163,12 +1177,13 @@ def cmd_create(args):
         name=campaign_name,
         tag=tag,
         campaign_cfg=manifest_cfg,
+        repo=args.repo,
     )
 
     # Write a CLI-level manifest snapshot alongside campaign.db.
     ts_str = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')
     manifest_snapshot = {
-        'campaign': {'name': campaign_name, 'tag': tag, 'created_at': ts_str},
+        'campaign': {'name': campaign_name, 'tag': tag, 'repo': args.repo, 'created_at': ts_str},
         'projects': [
             {'analysis': u.analysis, 'role': u.role, 'experiment': u.experiment,
              'toml_path': u.toml_path, 'batch_size': u.batch_size,
@@ -1349,10 +1364,12 @@ def cmd_launch(args):
         mode_label += f" [{jobs_per_process} job IDs per process]"
 
     with _open_db(_resolve_campaign(args)) as (conn, curs):
-        # Read the tag recorded at campaign creation time.
-        curs.execute("SELECT tag FROM campaign_meta LIMIT 1")
+        # Read the tag and repository recorded at campaign creation time.
+        # Campaigns created before the repo column existed use DEFAULT_REPO.
+        curs.execute("SELECT * FROM campaign_meta LIMIT 1")
         row_meta = curs.fetchone()
         tag = row_meta['tag'] if row_meta else 'develop'
+        repo = (row_meta['repo'] if row_meta and 'repo' in row_meta.keys() else None) or DEFAULT_REPO
 
         # Build query (optionally filtered by experiment).
         # --relaunch also picks up 'submitted' projects (e.g. after an auth failure
@@ -1386,6 +1403,7 @@ def cmd_launch(args):
             ],
         )
         print(f"\n[CAMPAIGN] {len(rows)} project(s) to launch{mode_label}.")
+        print(f"[CAMPAIGN] Grid jobs will build '{tag}' from {repo}")
         resp = input("\n[CAMPAIGN] Proceed with job submission? [Y/N] ")
         if resp.strip().lower() != 'y':
             print("[CAMPAIGN] Aborted.")
@@ -1419,8 +1437,8 @@ def cmd_launch(args):
                 jpp_kwargs = {'jobs_per_process': jobs_per_process} if jobs_per_process else {}
                 try:
                     ok = launch_jobsub(proj_dir, exp=exp, njobs=njobs, njobs_per_sample=njobs_per_sample,
-                                       confirm=False, tag=tag, verbose=args.verbose, force=args.force,
-                                       **lifetime_kwargs, **jpp_kwargs)
+                                       confirm=False, tag=tag, repo=repo, verbose=args.verbose,
+                                       force=args.force, **lifetime_kwargs, **jpp_kwargs)
                 except Exception as e:
                     print(f"[CAMPAIGN] Launch failed for {proj_dir}: {e}")
                     if args.verbose:
@@ -1630,7 +1648,31 @@ def _no_files_warning(tag_str, label):
               f"no output files for {tag_str}, skipping.")
 
 
-def _run_one_hadd(campaign_dir, row, out_path, input_glob, label, print_lock, job_ids=None):
+def _hadd_command(out_path, filelist_path, max_open_files):
+    """
+    The hadd command line, shared by the real run and the dry-run script.
+
+    -n caps how many input files hadd holds open at once. Without it, hadd
+    opens every input together (up to the open-file limit, ~500k on the
+    gpvms), and for a project of thousands of files it holds all of them
+    until one write at the very end. That makes the merge slow and
+    memory-hungry, and if it is interrupted nothing usable is left. With
+    -n, hadd merges in batches and saves the output after each one.
+    """
+    return ['hadd', '-f', '-n', str(max_open_files), str(out_path), f'@{filelist_path}']
+
+
+def _partial_path(out_path):
+    """
+    Where hadd writes before the merged file is moved to *out_path*, so an
+    interrupted or failed merge never leaves a broken file under the final
+    name (or replaces a good one from an earlier run).
+    """
+    return out_path.with_name(f"{out_path.stem}.partial{out_path.suffix}")
+
+
+def _run_one_hadd(campaign_dir, row, out_path, input_glob, label, print_lock,
+                  max_open_files, job_ids=None):
     """
     Run a single hadd invocation for one (project, output) pair.
 
@@ -1652,6 +1694,8 @@ def _run_one_hadd(campaign_dir, row, out_path, input_glob, label, print_lock, jo
         Lock guarding this function's own status prints, so that output
         from concurrent workers doesn't interleave mid-line. Does not (and
         cannot) serialize hadd's own subprocess output.
+    max_open_files : int
+        Passed to hadd as -n; see _hadd_command.
     job_ids : list[int] | None
         See _resolve_hadd_files.
 
@@ -1669,21 +1713,30 @@ def _run_one_hadd(campaign_dir, row, out_path, input_glob, label, print_lock, jo
         return False, True
 
     filelist_path = _write_hadd_filelist(campaign_dir, out_path, files)
+    partial_path = _partial_path(out_path)
 
     with print_lock:
         print(f"{_TAG_FINALIZE} hadd → {_A.CYAN}{out_path.name}{_A.RESET} "
               f"({len(files)} input file(s))")
     try:
-        subprocess.run(['hadd', '-f', str(out_path), f'@{filelist_path}'], check=True)
-        return True, False
+        subprocess.run(_hadd_command(partial_path, filelist_path, max_open_files), check=True)
     except subprocess.CalledProcessError as e:
+        # A negative return code means hadd was killed by a signal (e.g. the
+        # out-of-memory killer), which it cannot report itself.
+        partial_path.unlink(missing_ok=True)
         with print_lock:
             print(f"{_TAG_FINALIZE} {_A.RED}Error:{_A.RESET} hadd failed for "
-                  f"{out_path.name}: {e}")
+                  f"{out_path.name}: {e} Any existing file under that name is unchanged.")
         return False, False
+    # Remove the old file first rather than renaming over it, so this does
+    # not depend on the filesystem (dCache, for /pnfs) allowing that.
+    out_path.unlink(missing_ok=True)
+    partial_path.rename(out_path)
+    return True, False
 
 
-def _write_hadd_dryrun(campaign_dir, row, out_path, input_glob, label, job_ids=None):
+def _write_hadd_dryrun(campaign_dir, row, out_path, input_glob, label,
+                       max_open_files, job_ids=None):
     """
     Resolve one hadd task's inputs and write its file list plus a
     standalone, directly runnable script -- without invoking hadd itself.
@@ -1710,6 +1763,7 @@ def _write_hadd_dryrun(campaign_dir, row, out_path, input_glob, label, job_ids=N
         return 0, None
 
     filelist_path = _write_hadd_filelist(campaign_dir, out_path, files)
+    partial_path = _partial_path(out_path)
 
     script_dir = campaign_dir / 'filelists'
     script_path = script_dir / f"{out_path.stem}.sh"
@@ -1720,7 +1774,10 @@ def _write_hadd_dryrun(campaign_dir, row, out_path, input_glob, label, job_ids=N
         f"# {len(files)} input file(s) -- see {filelist_path.name} in this "
         "directory for the full list.\n"
         "set -e\n"
-        f"hadd -f {shlex.quote(str(out_path))} @{shlex.quote(str(filelist_path))}\n"
+        f"mkdir -p {shlex.quote(str(out_path.parent))}\n"
+        f"{shlex.join(_hadd_command(partial_path, filelist_path, max_open_files))}\n"
+        f"rm -f {shlex.quote(str(out_path))}\n"
+        f"mv {shlex.quote(str(partial_path))} {shlex.quote(str(out_path))}\n"
     )
     # Not chmod'd executable: campaign_dir (and so this script) can live on
     # /pnfs, where dCache does not reliably support setting Unix permission
@@ -1737,6 +1794,11 @@ def cmd_finalize(args):
     # prefix containing '/' must not be interpretable as introducing a
     # subdirectory under campaign_dir.
     prefix = _sanitize_path_component(args.prefix) if args.prefix else ''
+    # Merged files go to --output-dir if given; file lists and dry-run
+    # scripts always stay under campaign_dir/filelists/.
+    out_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else campaign_dir
+    if args.max_open_files < 1:
+        sys.exit(f"{_TAG_FINALIZE} --max-open-files must be at least 1.")
 
     with _open_db(campaign_dir) as (conn, curs):
         curs.execute("SELECT tag FROM campaign_meta LIMIT 1")
@@ -1798,12 +1860,12 @@ def cmd_finalize(args):
                 name = name[:-1]
 
             if single_output:
-                out_nosyst = campaign_dir / f"{name}.root"
+                out_nosyst = out_dir / f"{name}.root"
                 tasks.append((row, out_nosyst, nosyst_glob, 'nosyst', job_ids))
                 out_label = f"{name}.root"
             else:
-                out_nosyst = campaign_dir / f"{name}_nosyst.root"
-                out_wsyst  = campaign_dir / f"{name}_wsyst.root"
+                out_nosyst = out_dir / f"{name}_nosyst.root"
+                out_wsyst  = out_dir / f"{name}_wsyst.root"
                 tasks.append((row, out_nosyst, nosyst_glob, 'nosyst', job_ids))
                 tasks.append((row, out_wsyst,  syst_glob,   'wsyst', job_ids))
                 out_label = f"{name}_[no|w]syst.root"
@@ -1820,7 +1882,9 @@ def cmd_finalize(args):
         [W_AN, W_RO, W_EX, W_OUT],
         table_rows,
     )
-    print(f"\n{_TAG_FINALIZE} {len(rows)} project(s), {len(tasks)} hadd invocation(s).")
+    print(f"\n{_TAG_FINALIZE} {len(rows)} project(s), {len(tasks)} hadd invocation(s), "
+          f"at most {args.max_open_files} input file(s) open at once.")
+    print(f"{_TAG_FINALIZE} Merged files will be written to {out_dir}")
 
     if args.dry_run:
         # No hadd output is produced, but the actual merge plan is: the
@@ -1831,7 +1895,8 @@ def cmd_finalize(args):
         n_written = 0
         for row, out_path, input_glob, label, job_ids in tasks:
             n_files, script_path = _write_hadd_dryrun(
-                campaign_dir, row, out_path, input_glob, label, job_ids=job_ids
+                campaign_dir, row, out_path, input_glob, label,
+                args.max_open_files, job_ids=job_ids
             )
             if script_path is None:
                 continue
@@ -1849,13 +1914,15 @@ def cmd_finalize(args):
         print(f"{_TAG_FINALIZE} Aborted.")
         return
 
+    out_dir.mkdir(parents=True, exist_ok=True)
     n_ok = 0
     n_skipped = 0
     print_lock = threading.Lock()
     n_workers = max(1, args.workers)
     with ThreadPoolExecutor(max_workers=n_workers) as executor:
         future_to_task = {
-            executor.submit(_run_one_hadd, campaign_dir, row, out_path, input_glob, label, print_lock, job_ids): out_path
+            executor.submit(_run_one_hadd, campaign_dir, row, out_path, input_glob, label,
+                            print_lock, args.max_open_files, job_ids): out_path
             for row, out_path, input_glob, label, job_ids in tasks
         }
         for future in as_completed(future_to_task):
@@ -1874,7 +1941,7 @@ def cmd_finalize(args):
             else:
                 n_skipped += 1
 
-    print(f"\n{_TAG_FINALIZE} Done. {n_ok} file(s) created, {n_skipped} skipped.")
+    print(f"\n{_TAG_FINALIZE} Done. {n_ok} file(s) created in {out_dir}, {n_skipped} skipped.")
 
 
 # ---------------------------------------------------------------------------
@@ -1895,6 +1962,12 @@ def main():
                                'registered locally so --name can be used in place of --campaign)')
     p_create.add_argument('--tag', default='develop',
                           help='Git ref for grid nodes (default: develop)')
+    p_create.add_argument('--repo', default=DEFAULT_REPO, metavar='URL',
+                          help='Git repository grid nodes clone medulla from, e.g. a '
+                               'personal fork such as https://github.com/<user>/medulla.git '
+                               f'(default: {DEFAULT_REPO}). Must be public: grid nodes '
+                               'clone anonymously over https. Stored with the campaign, '
+                               'so launch uses it automatically.')
     p_create.add_argument('--output', metavar='PATH',
                           help='Base output directory for the campaign')
     p_create.add_argument('--manifest', metavar='PATH',
@@ -1938,7 +2011,7 @@ def main():
         help='Merge project outputs into combined ROOT files using hadd',
         description=(
             'Run hadd over each project\'s output files to produce combined ROOT files '
-            'in the campaign directory.\n\n'
+            'in the campaign directory (or --output-dir).\n\n'
             'Output filenames are controlled by an output_pattern key in the [[toml]] '
             'block of the analysis meta.toml.  Supported tokens:\n'
             '  %a  analysis name\n'
@@ -1949,7 +2022,10 @@ def main():
             'Without a trailing "#", two files are produced per project:\n'
             '  <pattern>_nosyst.root   (output_jobid*.root)\n'
             '  <pattern>_wsyst.root    (output_systematics_jobid*.root)\n'
-            'With a trailing "#", only the nosyst merge is produced under <pattern>.root.'
+            'With a trailing "#", only the nosyst merge is produced under <pattern>.root.\n\n'
+            'Each merge is written to <output>.partial.root and renamed only once hadd '
+            'succeeds, so an interrupted merge never leaves a broken file under the '
+            'final name.'
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -1977,6 +2053,18 @@ def main():
                                  '(default: 1, sequential). Each project\'s merges '
                                  'are fully independent, so this is safe to raise '
                                  'for campaigns with many projects.')
+    p_finalize.add_argument('--max-open-files', type=int, default=500, metavar='N',
+                            help='Passed to hadd as -n: merge at most N input files at '
+                                 'a time, saving the output after each batch '
+                                 '(default: 500). Keeps memory bounded for projects '
+                                 'with thousands of output files.')
+    p_finalize.add_argument('--output-dir', metavar='PATH', default=None,
+                            help='Write the merged files here instead of the campaign '
+                                 'directory (created if missing), e.g. '
+                                 '/exp/<experiment>/data/users/$USER/<analysis>, which '
+                                 'unlike /pnfs scratch is not cleared to free space. '
+                                 'File lists and dry-run scripts stay under '
+                                 'campaign_dir/filelists/.')
 
     # -- scan -----------------------------------------------------------------
     p_scan = sub.add_parser(
