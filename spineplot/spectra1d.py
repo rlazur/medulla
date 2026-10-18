@@ -155,7 +155,7 @@ class SpineSpectra1D(SpineSpectra):
     def draw(self, ax, style, show_component_number=False,
              show_component_percentage=False, invert_stack_order=False,
              fit_type=None, logx=False, logy=False, normalize=False,
-             draw_error=None) -> None:
+             draw_error=None, legend_ncols=1, loc='best') -> None:
         """
         Plots the data for the SpineSpectra1D object.
 
@@ -193,6 +193,10 @@ class SpineSpectra1D(SpineSpectra):
         draw_error : str, optional
             Indicates the name of the Systematic object to use for
             drawing the error boxes. The default is None.
+        legend_ncols : int, optional
+            The number of columns in the legend. The default is 1.
+        loc : str, optional
+            The location of the legend. The default is 'best'.
 
         Returns
         -------
@@ -258,15 +262,15 @@ class SpineSpectra1D(SpineSpectra):
             if draw_error:
                 h.append(plt.Rectangle((0, 0), 1, 1, fc='gray', alpha=0.5, hatch='///'))
                 l.append(systs[0].label)
-                ax.legend(h[-2::-1]+h[-1:], l[-2::-1]+l[-1:])
+                ax.legend(h[-2::-1]+h[-1:], l[-2::-1]+l[-1:], ncol=legend_ncols, loc=loc)
             else:
-                ax.legend(h[::-1], l[::-1])
+                ax.legend(h[::-1], l[::-1], ncol=legend_ncols, loc=loc)
         else:
             h, l = ax.get_legend_handles_labels()
             if draw_error:
                 h.append(plt.Rectangle((0, 0), 1, 1, fc='gray', alpha=0.5, hatch='///'))
                 l.append(systs[0].label)
-            ax.legend(h, l)
+            ax.legend(h, l, ncol=legend_ncols, loc=loc)
 
         if isinstance(self._yrange, (tuple, list)):
             ax.set_ylim(*self._yrange)

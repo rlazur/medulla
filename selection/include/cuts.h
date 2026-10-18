@@ -758,6 +758,22 @@ namespace cuts
     }
     REGISTER_CUT_SCOPE(RegistrationScope::Both, valid_pi0_mass_cut, valid_pi0_mass_cut);
 
+    template<class T>
+    bool valid_pi0_mass_openingangle_cut(const T & obj, std::vector<double> params={60.0, 300.0, 0.9, 1.0})
+    {
+        auto [i0, i1] = biselectors::pi0_photon_pair(obj);
+        if(i0 == kNoMatch || i1 == kNoMatch) return false;
+        const auto & p0 = obj.particles[i0];
+        const auto & p1 = obj.particles[i1];
+        double vx = obj.vertex[0], vy = obj.vertex[1], vz = obj.vertex[2];
+        double ke0 = pvars::calo_ke(p0), ke1 = pvars::calo_ke(p1);
+        double ct   = bvars::pi0_opening_costheta_impl(p0, p1, vx, vy, vz);
+        double opening_angle = bvars::opening_angle(p0, p1);
+        double mass = std::sqrt(2.0 * ke0 * ke1 * (1.0 - ct));
+        return mass >= params[0] && mass < params[1] && opening_angle >= params[2] && opening_angle <= params[3];
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, valid_pi0_mass_openingangle_cut, valid_pi0_mass_openingangle_cut);
+
     /**
      * @brief Binding for a single particle electron multiplicity cut.
      * @details This function binds the single particle multiplicity cut for
@@ -794,6 +810,35 @@ namespace cuts
         return particle_multiplicity(obj, 1, 2, params) == 1;
     }
     REGISTER_CUT_SCOPE(RegistrationScope::Both, single_muon, single_muon);
+
+    /**
+     * @brief Binding for a single particle muon multiplicity cut.
+     * @details This function binds the single particle multiplicity cut for
+     * muons, which corresponds to the index 2 in the
+     * @ref utilities::count_primaries function.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * kinetic energy threshold for a muon to count towards the multiplicity.
+     * Defaults to 143.425 MeV, which corresponds to a muon of length 50 cm
+     * (assuming the muon stops).
+     * @return true if the interaction has a single primary muon.
+     */
+    template<class T>
+    bool single_muon_polar_cut(const T & obj, std::vector<double> params={143.425, 1.8, 2.0})
+    {
+        if(particle_multiplicity(obj, 1, 2, {params[0]}) != 1)
+            return false;
+        for(const auto & p : obj.particles)
+        {
+            if(pvars::pid(p) == 2 && pvars::primary_classification(p) && pvars::ke(p) >= params[0])
+            {
+                double polar_angle = pvars::polar_angle(p);
+                return polar_angle >= params[1] && polar_angle <= params[2];
+            }
+        }
+        return false;
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, single_muon_polar_cut, single_muon_polar_cut);
 
     /**
      * @brief Binding for a single particle pion multiplicity cut.
@@ -853,6 +898,46 @@ namespace cuts
 	    return num_primary_pi0s >= 1;
     }
     REGISTER_CUT_SCOPE(RegistrationScope::True, at_least_one_pi0, at_least_one_pi0);
+
+    /**
+     * @brief Binding for a leading photon kinetic energy cut.
+     * @details This function binds a cut that requires the leading photon
+     * in a pi0 candidate to have a minimum kinetic energy.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * minimum kinetic energy for the leading photon. Defaults to 40 MeV.
+     * @return true if the leading photon has a kinetic energy above the threshold.
+     */
+    template<class T>
+    bool leading_photon_ke_cut(const T & obj, std::vector<double> params={40.0})
+    {
+        auto [i0, i1] = biselectors::pi0_photon_pair(obj);
+        if(i0 == kNoMatch || i1 == kNoMatch) return false;
+        const auto & p0 = obj.particles[i0]; 
+        double ke0 = pvars::calo_ke(p0);
+        return ke0 >= params[0];
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, leading_photon_ke_cut, leading_photon_ke_cut);
+
+    /**
+     * @brief Binding for a subleading photon kinetic energy cut.
+     * @details This function binds a cut that requires the subleading photon
+     * in a pi0 candidate to have a minimum kinetic energy.
+     * @param obj the interaction to select on.
+     * @param params the parameters for the cut. In this case, this sets the
+     * minimum kinetic energy for the subleading photon. Defaults to 40 MeV.
+     * @return true if the subleading photon has a kinetic energy above the threshold.
+     */
+    template<class T>
+    bool subleading_photon_ke_cut(const T & obj, std::vector<double> params={40.0})
+    {
+        auto [i0, i1] = biselectors::pi0_photon_pair(obj);
+        if(i0 == kNoMatch || i1 == kNoMatch) return false;
+        const auto & p1 = obj.particles[i1]; 
+        double ke1 = pvars::calo_ke(p1);
+        return ke1 >= params[0];
+    }
+    REGISTER_CUT_SCOPE(RegistrationScope::Both, subleading_photon_ke_cut, subleading_photon_ke_cut);
 
     /**
      * @brief Binding for a single particle proton multiplicity cut.

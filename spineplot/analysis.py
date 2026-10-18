@@ -258,7 +258,12 @@ class Analysis:
             os.makedirs(self._output_path)
         for figname, figure in self._figures.items():
             figure.create()
-            figure.figure.savefig(f"{self._output_path}/{figname}.png")
+            # Remove an existing figure first: /pnfs (dCache) allows
+            # writing a new file but not overwriting an existing one.
+            figpath = f"{self._output_path}/{figname}.png"
+            if os.path.exists(figpath):
+                os.remove(figpath)
+            figure.figure.savefig(figpath)
             if close_figs:
                 figure.close()
 

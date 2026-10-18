@@ -1,0 +1,225 @@
+#######################################
+####### numuCC0pi1pi0: Systematics ####
+#
+# Stacked spectra of the selected candidates with an uncertainty band
+# built from the flux, interaction (GENIE multisim + multisigma),
+# detector variation (detvar), and MC statistical uncertainties.
+# Ported from rlazur_pi0_biselectors/spineplot/configurations/analyses/
+# systematics/systematics_0.toml, with the detector variations added.
+#
+# Run from medulla/spineplot:
+#   python3 spineplot.py \
+#     --config configurations/analyses/numuCC0pi1pi0/systematics.toml \
+#     --input /pnfs/sbnd/scratch/users/rlazur/rlazur_pi0_biselectors/mc_onbeam_offbeam_selected_sys.root
+#
+# This is currently configured for the reference file above, which has
+# events/{mc,onbeam,offbeam} and no detector variations (the detvar
+# block below is skipped with a warning, see `allow_missing`).
+#
+# The numuCC0pi1pi0 batch campaign (selection/toml/numuCC0pi1pi0/
+# meta.toml) writes two merged files: the 'primary' one holds the CV MC
+# and its weights in events/sbnd_small, and the 'detvar' one holds the
+# detector variations in events/sbnd_detvar_*. It has no onbeam or
+# offbeam samples. To switch to it, pass the primary merged file as
+# --input and:
+#   1. Set key = 'sbnd_small' on the two MC samples.
+#   2. Remove `presel` from the MC samples: it is the same cut as the
+#      selection's `fiducialize_cathode`, and the campaign trees do not
+#      store reco_vertex_x.
+#   3. Set the detvar `file` to the detvar merged file and set
+#      allow_missing = false.
+#   4. Give onbeam/offbeam a `file` that contains them.
+# The campaign's selected tree must also carry `true_category` (the
+# [[category]] blocks and the category branch) and the plotted
+# variables.
+
+[output]
+# Not /pnfs: dCache cannot overwrite an existing file, so any rerun fails
+# with "PermissionError: Operation not permitted" on the first figure.
+path = '/exp/sbnd/data/users/rlazur/numuCC0pi1pi0/figures/systematics/'
+
+[[style]]
+name = 'numuCC0pi1pi0_sbnd'
+style_sheet = "styles/numuCCpi0.mplstyle"
+markers = ['o', '^', 's', 'P', 'D']
+default_figsize = [6.4,4.8]
+title = ''
+mark_pot = true
+mark_preliminary = '$\bf{SBND}$ Work-in-Progress'
+plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
+
+
+#########################################
+######## Samples ########################
+
+# CV MC with the GENIE/flux universe weights and the detector variations.
+[samples.mc_selected_systematics]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected']
+systematics = ['selected_multisimTree', 'selected_multisigmaTree']
+presel = 'abs(reco_vertex_x) > 5'
+
+# Detector variations. Each entry in `variations` becomes a systematic
+# named detvar_<name>: the fractional shift of the variation relative
+# to `cv` (both normalized by POT), applied to the spectrum of this
+# sample. A list of keys is treated as variations of one parameter
+# (e.g. +/- 5% gain), and their covariances are averaged. The sample's
+# `presel` and `precompute` are applied to these samples as well.
+[[samples.mc_selected_systematics.detvar]]
+# file = '/path/to/numuCC0pi1pi0 detvar merged file.root'
+cv = 'sbnd_detvar_cv'
+allow_missing = true
+
+[samples.mc_selected_systematics.detvar.variations]
+dent = 'sbnd_detvar_dent'
+charge_scale = 'sbnd_detvar_charge_scale'
+gain = ['sbnd_detvar_p5_gain', 'sbnd_detvar_m5_gain']
+smear15 = 'sbnd_detvar_smear15'
+wiremod_xthetaxw = 'sbnd_detvar_wiremod_xthetaxw'
+wiremod_yz = 'sbnd_detvar_wiremod_yz'
+
+# Selected MC events that could not be matched to their universe weights.
+# They have no systematics beyond their statistical uncertainty.
+[samples.mc_nonmatched]
+key = "mc"
+exposure_type = "pot"
+trees = ['selected_nonmatched']
+presel = 'abs(reco_vertex_x) > 5'
+
+[samples.onbeam]
+key = "onbeam"
+exposure_type = "pot"
+override_category = -100
+trees = ['selected']
+presel = 'abs(reco_vertex_x) > 5'
+
+[samples.offbeam]
+key = "offbeam"
+exposure_type = "livetime"
+override_category = -10
+trees = ['selected']
+presel = 'abs(reco_vertex_x) > 5'
+
+
+#########################################
+######## Categories #####################
+
+[analysis]
+ordinate_sample = 'onbeam'
+category_branch = 'true_category'
+category_assignment = [[0], [1], [2], [3], [4], [5], [-10], [-100]]
+category_labels = [
+    'CC $0\pi^\pm 1\pi^0$',
+    'CC $0\pi^\pm >1\pi^0$',
+    'CC $\geq 1\pi^\pm$',
+    'NC $\geq 1\pi^\pm$',
+    'Other $\nu$',
+    'Cosmic MC',
+    'Offbeam',
+    'Data'
+]
+category_colors = ['C0', 'C1', 'C7', 'C3', 'C4', 'C5', 'C6', 'black']
+category_types = ['histogram', 'histogram', 'histogram', 'histogram', 'histogram', 'histogram','histogram', 'scatter']
+
+
+##################################
+### Systematic Recipes ###########
+#
+# Each pattern is matched against the names of the systematics of each
+# sample (and of the recipes before it). The combined recipes below are
+# anchored with ^...$ so that they only pick up other recipes: unanchored,
+# 'interaction' would also match the reinteractions_*_Geant4 weights in
+# the campaign files.
+
+[[systematic_recipe]]
+name = 'flux'
+label = 'Flux Systematics'
+pattern = '(expskin|horncurrent|kminus|kplus|kzero|nucleoninexsec|nucleonqexsec|nucleontotxsec|piminus|pioninexsec|pionqexsec|piontotxsec|piplus)_Flux'
+
+[[systematic_recipe]]
+name = 'multisim_xsec'
+label = 'Multisim'
+pattern = 'GENIEReWeight_SBN_v1_multisim_(NCEL|CCRES|NCRES|COH|DISBY|FSI)+'
+
+[[systematic_recipe]]
+name = 'multisigma_xsec'
+label = 'Multisigma'
+pattern = 'GENIEReWeight_SBN_v1_multisigma_(ZExpA|VecFFCCQEshape|RPA_CCQE|CoulombCCQE|NormCCMEC|NormNCMEC|DecayAngMEC|MaNCEL|EtaNCEL|Mc|Mv|NonRESBG|Theta|AhtBY|BhtBY|CV|MFP|Fr|)+'
+
+[[systematic_recipe]]
+name = 'interaction'
+label = 'Interaction Systematics'
+pattern = '^(multisim|multisigma)_xsec$'
+
+[[systematic_recipe]]
+name = 'detector'
+label = 'Detector Systematics'
+pattern = '^detvar_'
+
+[[systematic_recipe]]
+name = 'stats'
+label = 'Statistical Uncertainty'
+pattern = '^(mc_selected_systematics|mc_nonmatched)_statistical$'
+
+[[systematic_recipe]]
+name = 'all'
+label = 'Total Uncertainty'
+pattern = '^(flux|interaction|detector|stats)$'
+
+[[systematic_recipe]]
+name = 'all_except_stats'
+label = 'Flux + Int. + Det.'
+pattern = '^(flux|interaction|detector)$'
+
+
+##################################
+### Plot Options #################
+
+[variables.reco_pi0_mass]
+key = "reco_bivar_pi0_photon_pair_pi0_invariant_mass"
+range = [0, 300]
+nbins = 30
+xlabel = "Reco. $\\pi^{0}$ Diphoton Mass [MeV/c$^{2}$]"
+
+[[figure]]
+name = 'reco_pi0_mass'
+type = 'SimpleFigure'
+style = 'numuCC0pi1pi0_sbnd'
+[[figure.artists]]
+type = 'SpineSpectra1D'
+variable = 'reco_pi0_mass'
+yrange = [0.0, 0.35]
+draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best',  'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [variables.reco_pi0_showers_opening_costheta]
+# key = "reco_bivar_pi0_photon_pair_pi0_opening_costheta"
+# range = [-1, 1]
+# nbins = 30
+# xlabel = "Reco. $\\pi^{0}$ cos($\\theta_{\\gamma\\gamma}$)"
+
+# [[figure]]
+# name = "reco_pi0_showers_opening_costheta"
+# type = "SimpleFigure"
+# style = "numuCC0pi1pi0_sbnd"
+# [[figure.artists]]
+# type = "SpineSpectra1D"
+# variable = "reco_pi0_showers_opening_costheta"
+# yrange =  [0.0, 0.1]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 3, 'loc' = 'upper center',  'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [variables.reco_pi0_beam_costheta]
+# key = "reco_bivar_pi0_photon_pair_pi0_beam_costheta"
+# range = [-1, 1]
+# nbins = 30
+# xlabel = "Reco. cos($\\theta_{\\pi^{0}}$)"
+
+# [[figure]]
+# name = "reco_pi0_beam_costheta"
+# type = "SimpleFigure"
+# style = "numuCC0pi1pi0_sbnd"
+# [[figure.artists]]
+# type = "SpineSpectra1D"
+# variable = "reco_pi0_beam_costheta"
+# yrange =  [0.0, 0.135]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 3, 'loc' = 'upper center',  'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}

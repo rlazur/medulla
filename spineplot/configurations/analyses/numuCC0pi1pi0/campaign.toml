@@ -1,0 +1,415 @@
+#######################################
+####### numuCC0pi1pi0: Campaign MC ####
+#
+# Category-stacked spectra of the selected candidates, with flux,
+# interaction (GENIE) and reinteraction (Geant4) uncertainty bands, for
+# the numuCC0pi1pi0 campaign files (selection/toml/numuCC0pi1pi0/).
+#
+# Run from medulla/spineplot, with the campaign's merged weights file:
+#   python3 spineplot.py \
+#     --config configurations/analyses/numuCC0pi1pi0/campaign.toml \
+#     --input /exp/sbnd/data/users/rlazur/numuCC0pi1pi0/<campaign>_wsyst.root
+#
+# Differences from systematics.toml (built for the earlier
+# rlazur_pi0_biselectors production):
+#   - MC only: the campaign files have no onbeam/offbeam data, so the MC
+#     is its own ordinate and the spectra are area-normalized.
+#   - The interaction band is the 30 GENIE multisim groups. The
+#     multisigma knobs are not added: most are already varied inside a
+#     multisim group (e.g. MaCCRES and MvCCRES in CCRESVariationResponse),
+#     so adding them would count them twice. The few knobs outside every
+#     group (e.g. DecayAngMEC) are therefore not in the band yet; add
+#     selected_multisigmaTree and a recipe for them if they are needed.
+#   - Geant4 reinteraction weights are included as their own term.
+#   - No detector variations: the detvar campaign files only carry the
+#     pi0 mass and visible energy. syst_plots.py shows those comparisons.
+#   - No presel: the selection already applies fiducialize_cathode.
+
+[output]
+path = '/exp/sbnd/data/users/rlazur/numuCC0pi1pi0/figures/campaign/'
+
+[[style]]
+name = 'numuCC0pi1pi0_sbnd'
+style_sheet = "styles/numuCCpi0.mplstyle"
+markers = ['o', '^', 's', 'P', 'D']
+default_figsize = [6.4,4.8]
+title = ''
+mark_pot = true
+mark_preliminary = '$\bf{SBND}$ Work-in-Progress'
+plot_kwargs = {'histtype' = 'barstacked', 'stacked' = true}
+
+
+#########################################
+######## Samples ########################
+
+# CV MC (the 1e20 sample, events/sbnd_large) with its universe weights.
+# fillna: an event with no truth match has no category; without fillna
+# spineplot drops it from the data but not from the weights, which
+# misaligns the two. Such events are counted with the cosmics.
+[samples.mc_selected]
+key = "sbnd_large"
+exposure_type = "pot"
+trees = ['selected']
+systematics = ['selected_multisimTree']
+fillna = 5
+
+# Selected MC events without a neutrino to weight (mostly cosmics). They
+# carry only their statistical uncertainty.
+[samples.mc_nonmatched]
+key = "sbnd_large"
+exposure_type = "pot"
+trees = ['selected_nonmatched']
+fillna = 5
+
+
+#########################################
+######## Categories #####################
+
+[analysis]
+ordinate_sample = 'mc_selected'
+category_branch = 'true_category'
+category_assignment = [[0], [1], [2], [3], [4], [5]]
+category_labels = [
+    'CC $0\pi^\pm 1\pi^0$',
+    'CC $0\pi^\pm >1\pi^0$',
+    'CC $\geq 1\pi^\pm$',
+    'NC $\geq 1\pi^\pm$',
+    'Other $\nu$',
+    'Cosmic or unmatched',
+]
+category_colors = ['C0', 'C1', 'C7', 'C3', 'C4', 'C5']
+category_types = ['histogram', 'histogram', 'histogram', 'histogram', 'histogram', 'histogram']
+
+
+##################################
+### Systematic Recipes ###########
+#
+# Each pattern is matched against the systematic names of each sample
+# (and the recipes before it). The combined recipes are anchored with
+# ^...$ so they only pick up other recipes.
+
+[[systematic_recipe]]
+name = 'flux'
+label = 'Flux'
+pattern = '_Flux$'
+
+[[systematic_recipe]]
+name = 'interaction'
+label = 'Interaction (GENIE)'
+pattern = '^GENIEReWeight_SBN_v1_multisim_'
+
+[[systematic_recipe]]
+name = 'reinteraction'
+label = 'Reinteraction (Geant4)'
+pattern = '_Geant4$'
+
+[[systematic_recipe]]
+name = 'stats'
+label = 'MC Statistics'
+pattern = '^(mc_selected|mc_nonmatched)_statistical$'
+
+[[systematic_recipe]]
+name = 'all'
+label = 'Total Uncertainty'
+pattern = '^(flux|interaction|reinteraction|stats)$'
+
+[[systematic_recipe]]
+name = 'all_except_stats'
+label = 'Flux + Int. + Reint.'
+pattern = '^(flux|interaction|reinteraction)$'
+
+
+##################################
+### Variables ####################
+# Ranges and labels follow rlazur_pi0_biselectors'
+# spineplot/configurations/common/variables_viv_systematics.toml.
+
+# Pi0 candidate (the photon-pair energies are in GeV)
+[variables.reco_pi0_mass]
+key = "reco_bivar_pi0_photon_pair_pi0_invariant_mass"
+range = [0, 400]
+nbins = 30
+xlabel = "Reco. $\\pi^{0}$ Diphoton Mass [MeV/c$^{2}$]"
+
+[variables.reco_pi0_opening_costheta]
+key = "reco_bivar_pi0_photon_pair_pi0_opening_costheta"
+range = [-1, 1]
+nbins = 30
+xlabel = "Reco. $\\pi^{0}$ cos($\\theta_{\\gamma\\gamma}$)"
+
+[variables.reco_pi0_beam_costheta]
+key = "reco_bivar_pi0_photon_pair_pi0_beam_costheta"
+range = [-1, 1]
+nbins = 30
+xlabel = "Reco. $\\pi^{0}$ cos($\\theta_{beam}$)"
+
+[variables.reco_leading_photon_ke]
+key = "reco_bivar_pi0_photon_pair_leading_ke"
+range = [0.0, 1.0]
+nbins = 30
+xlabel = "Reco. Leading Shower KE [GeV]"
+
+[variables.reco_subleading_photon_ke]
+key = "reco_bivar_pi0_photon_pair_subleading_ke"
+range = [0.0, 1.0]
+nbins = 30
+xlabel = "Reco. Subleading Shower KE [GeV]"
+
+# Leading muon (KE in MeV)
+[variables.reco_muon_ke]
+key = "reco_leading_muon_ke"
+range = [0, 3000]
+nbins = 30
+xlabel = "Reco. $\\mu^-$ KE [MeV]"
+
+[variables.reco_muon_polar_angle]
+key = "reco_leading_muon_polar_angle"
+range = [0.0, 3.1415]
+nbins = 30
+xlabel = "Reco. $\\mu^-$ Polar Angle [rad]"
+
+[variables.reco_muon_length]
+key = "reco_leading_muon_length"
+range = [0, 500]
+nbins = 25
+xlabel = "Reco. $\\mu^-$ Length [cm]"
+
+# Interaction vertex
+[variables.reco_vertex_x]
+key = "reco_vertex_x"
+range = [-200, 200]
+nbins = 40
+xlabel = "Reco. Vertex x [cm]"
+
+[variables.reco_vertex_y]
+key = "reco_vertex_y"
+range = [-200, 200]
+nbins = 40
+xlabel = "Reco. Vertex y [cm]"
+
+[variables.reco_vertex_z]
+key = "reco_vertex_z"
+range = [0, 500]
+nbins = 50
+xlabel = "Reco. Vertex z [cm]"
+
+# Transverse kinematic imbalance
+[variables.reco_dpT]
+key = "reco_dpT"
+range = [0, 1000]
+nbins = 30
+xlabel = "Reco. $\\delta p_{T}$ [MeV/c]"
+
+[variables.reco_dpL]
+key = "reco_dpL"
+range = [-1750, 750]
+nbins = 30
+xlabel = "Reco. $\\delta p_{L}$ [MeV/c]"
+
+[variables.reco_pn]
+key = "reco_pn"
+range = [0, 2000]
+nbins = 30
+xlabel = "Reco. $p_{n}$ [MeV/c]"
+
+[variables.reco_dphiT]
+key = "reco_dphiT"
+range = [0.0, 3.1415]
+nbins = 30
+xlabel = "Reco. $\\delta\\phi_{T}$ [rad]"
+
+[variables.reco_dalphaT]
+key = "reco_dalphaT"
+range = [0.0, 3.1415]
+nbins = 30
+xlabel = "Reco. $\\delta\\alpha_{T}$ [rad]"
+
+# Energy
+[variables.reco_visible_energy]
+key = "reco_visible_energy"
+range = [0, 3]
+nbins = 30
+xlabel = "Reco. Visible Energy [GeV]"
+
+[variables.true_neutrino_energy]
+key = "true_neutrino_energy"
+range = [0, 3]
+nbins = 30
+xlabel = "True Neutrino Energy [GeV]"
+
+
+##################################
+### Figures ######################
+# One stacked spectrum per variable, area-normalized, with the band of
+# the flux, interaction and reinteraction uncertainties. Distributions
+# that are flat under the legend get a y range with headroom and a
+# two-column legend at the top.
+
+[[figure]]
+name = 'reco_pi0_mass'
+type = 'SimpleFigure'
+style = 'numuCC0pi1pi0_sbnd'
+[[figure.artists]]
+type = 'SpineSpectra1D'
+variable = 'reco_pi0_mass'
+draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_pi0_opening_costheta'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_pi0_opening_costheta'
+# yrange = [0.0, 0.12]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_pi0_beam_costheta'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_pi0_beam_costheta'
+# yrange = [0.0, 0.15]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_leading_photon_ke'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_leading_photon_ke'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_subleading_photon_ke'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_subleading_photon_ke'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_muon_ke'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_muon_ke'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_muon_polar_angle'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_muon_polar_angle'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_muon_length'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_muon_length'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_vertex_x'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_vertex_x'
+# yrange = [0.0, 0.075]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_vertex_y'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_vertex_y'
+# yrange = [0.0, 0.07]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_vertex_z'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_vertex_z'
+# yrange = [0.0, 0.055]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_dpT'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_dpT'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_dpL'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_dpL'
+# yrange = [0.0, 0.25]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_pn'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_pn'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_dphiT'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_dphiT'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_dalphaT'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_dalphaT'
+# yrange = [0.0, 0.17]
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 2, 'loc' = 'upper center', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'reco_visible_energy'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'reco_visible_energy'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}
+
+# [[figure]]
+# name = 'true_neutrino_energy'
+# type = 'SimpleFigure'
+# style = 'numuCC0pi1pi0_sbnd'
+# [[figure.artists]]
+# type = 'SpineSpectra1D'
+# variable = 'true_neutrino_energy'
+# draw_kwargs = {'draw_error' = 'all_except_stats', 'legend_ncols' = 1, 'loc' = 'best', 'normalize' = true, 'show_component_number' = false, 'show_component_percentage' = true, 'invert_stack_order' = true}

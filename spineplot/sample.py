@@ -3,7 +3,7 @@ import pandas as pd
 import re
 import uproot
 
-from systematic import Systematic
+from systematic import Systematic, DetectorSystematic
 
 class Sample:
     """
@@ -38,7 +38,8 @@ class Sample:
     """
     def __init__(self, name, rf, category_branch, key, exposure_type, trees,
                  fillna=None, systematics=None, override_exposure=None, precompute=None,
-                 presel=None, override_category=None, print_sys=False) -> None:
+                 presel=None, override_category=None, print_sys=False, file=None,
+                 detvar=None) -> None:
         """
         Initializes the Sample object with the given name and key.
 
@@ -77,11 +78,27 @@ class Sample:
         override_category : int
             The category to override the category branch with if it is
             configured. Else, the category branch is left as is.
+        file : str, optional
+            The path to a ROOT file to load the sample from instead of
+            the analysis input file. The default is None.
+        detvar : list[dict], optional
+            A list of detector variation blocks for the sample. Each
+            block has the keys `cv` (the key of the detector variation
+            central value TDirectory), `variations` (a table mapping a
+            parameter name to the key of its variation TDirectory, or
+            to a list of keys for e.g. +/- variations of a parameter),
+            and optionally `trees` (default: the sample's `trees`),
+            `file` (default: the sample's input file), and
+            `allow_missing` (default: False). The `precompute` and
+            `presel` of the sample are applied to the detector
+            variation samples as well. The default is None.
 
         Returns
         -------
         None.
         """
+        if file is not None:
+            rf = uproot.open(file)
         self._name = name
         self._exposure_type = exposure_type
         self._file_handle = rf[f'events/{key}']
@@ -145,11 +162,92 @@ class Sample:
             for sys in systematics:
                 systs = [k for k in self._file_handle[sys].keys() if k not in ['Run', 'Subrun', 'Evt']]
                 self._systematics.update({syst: Systematic(syst, self._file_handle[sys][syst]) for syst in systs})
-        
+
+        # Load the detector variations for the sample. Each detector
+        # parameter becomes one DetectorSystematic named
+        # `detvar_<parameter>`.
+        if detvar is not None:
+            for block in detvar:
+                self._systematics.update(self.load_detvar(rf, trees, precompute, presel, **block))
+
         # Add statistical uncertainty. This can always be added to the
         # sample, because it is not dependent on some external source
         # of weights.
         self._systematics.update({f'{self._name}_statistical': Systematic('statistical', None)})
+
+    def load_detvar(self, rf, sample_trees, precompute, presel, cv, variations,
+                    trees=None, file=None, allow_missing=False) -> dict:
+        """
+        Loads one block of detector variation samples and creates a
+        DetectorSystematic for each detector parameter in the block.
+
+        Parameters
+        ----------
+        rf : uproot.reading.ReadOnlyDirectory
+            The file handle for the sample's input ROOT file. This is
+            used unless `file` is given.
+        sample_trees : list
+            The sample's `trees`, which are loaded for each detector
+            variation sample unless `trees` is given.
+        precompute : dict
+            The sample's `precompute` expressions, which are applied to
+            the detector variation samples as well.
+        presel : str
+            The sample's `presel` string, which is applied to the
+            detector variation samples as well.
+        cv : str
+            The key of the TDirectory containing the detector variation
+            central value sample.
+        variations : dict
+            A map between the detector parameter name and the key (or
+            list of keys) of the TDirectory containing its variation
+            sample(s).
+        trees : list, optional
+            The list of TTree names to load for each detector variation
+            sample. The default is None (use `sample_trees`).
+        file : str, optional
+            The path to the ROOT file containing the detector variation
+            samples. The default is None (use `rf`).
+        allow_missing : bool, optional
+            If True, a missing file or TDirectory prints a warning and
+            the block is skipped. If False, it raises an error. The
+            default is False.
+
+        Returns
+        -------
+        dict
+            A map between the name of each DetectorSystematic
+            (`detvar_<parameter>`) and the object itself.
+        """
+        trees = sample_trees if trees is None else trees
+        groups = {k: [v] if isinstance(v, str) else list(v) for k, v in variations.items()}
+        try:
+            handle = uproot.open(file) if file is not None else rf
+            for key in [cv, *[k for v in groups.values() for k in v]]:
+                handle[f'events/{key}']
+        except (FileNotFoundError, KeyError) as e:
+            if not allow_missing:
+                raise
+            print(
+                f'[!!!] Detector variations for Sample `{self._name}`'
+                f' could not be loaded ({e}). Skipping them because'
+                f' `allow_missing` is set: the detector systematics'
+                f' will NOT be included in any uncertainty band!'
+            )
+            return dict()
+
+        def load(key):
+            directory = handle[f'events/{key}']
+            data = pd.concat([directory[tree].arrays(library='pd') for tree in trees])
+            if precompute is not None:
+                for k, v in precompute.items():
+                    data[k] = data.eval(v)
+            if presel is not None:
+                data = data[data.eval(presel)]
+            return data, directory['POT'].to_numpy()[0][0]
+
+        cv_data = load(cv)
+        return {f'detvar_{k}': DetectorSystematic(f'detvar_{k}', cv_data, [load(key) for key in v]) for k, v in groups.items()}
 
     def override_exposure(self, exposure, exposure_type='pot') -> None:
         """
