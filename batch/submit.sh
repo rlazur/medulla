@@ -150,8 +150,8 @@ usage() {
 
 # Initialize variables
 PROJECT=""
-REPO="https://github.com/justinjmueller/medulla.git"
-TAG="develop"
+REPO="https://github.com/rlazur/rlazur_pi0_migration.git"
+TAG="v0.1"
 SAMPLE=""
 FORCE=""
 STAGE_TIMEOUT=7200
